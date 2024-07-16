@@ -6,6 +6,8 @@
 #include <thread>
 #include <queue>
 
+#include "utools.h"
+
 #define BUFFER_SIZE 10
 std::unique_ptr<unsigned char[]> rxBuffer;
 volatile size_t rxLength = 0;
@@ -44,13 +46,24 @@ void IRAM_ATTR onReceive()
 void setup()
 {
   Serial.begin(115200);
+
+  utools::logger::set_log_fun([](const char *msg) -> void
+                              { Serial.print(msg); });
+  utools::logger::set_log_levels({utools::logger::level::INFO,
+                                  utools::logger::level::TRACE,
+                                  utools::logger::level::DEBUG,
+                                  utools::logger::level::WARN,
+                                  utools::logger::level::ERROR,
+                                  utools::logger::level::FATAL});
+  utools::logger_trace("utools configured.");
+
   Serial1.begin(115200, SERIAL_8N1, 18, 17);
   Serial1.setRxTimeout(10);
   Serial1.onReceive(onReceive);
   LoRa_24G_init();
   LoRa_900M_init();
-  std::thread(LoRa_900M_rx).detach();
 }
+
 uint64_t receive_times = 0;
 void handle_receive()
 {
