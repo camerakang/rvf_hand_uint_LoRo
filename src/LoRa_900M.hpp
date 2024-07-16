@@ -1,41 +1,28 @@
-/*
-  RadioLib SX126x Blocking Transmit Example
-
-  This example transmits packets using SX1262 LoRa radio_900M module.
-  Each packet contains up to 256 bytes of data, in the form of:
-  - Arduino String
-  - null-terminated char array (C-string)
-  - arbitrary binary data (byte array)
-
-  Other modules from SX126x family can also be used.
-
-  Using blocking transmit is not recommended, as it will lead
-  to inefficient use of processor time!
-  Instead, interrupt transmit is recommended.
-
-  For default module settings, see the wiki page
-  https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx126x---lora-modem
-
-  For full API reference, see the GitHub Pages
-  https://jgromes.github.io/RadioLib/
-*/
-
-// include the library
 #include <RadioLib.h>
 #include <queue>
 #include <vector>
+#include <thread>
+
+#include <Arduino.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+
 #include "bytes_string.hpp"
 #include "nrf24_device.h"
-std::queue<std::vector<uint8_t>> txBufferQueue;
-uint8_t parseProtocol(uint8_t *data, size_t length);
-volatile bool receivedFlag_900 = false;
+#include "utools.h"
 
-extern "C" void setFlag(void)
+auto sync_partner_900M{utools::collab::freertos::make_sync_partner<false, true>()};
+
+ICACHE_RAM_ATTR void setFlag(void)
 {
-    // we got a packet, set the flag
-    receivedFlag_900 = true;
+    sync_partner_900M.notify();
 }
+
+static uint8_t parseProtocol(uint8_t *data, size_t length);
 void LoRa_900M_init();
+void LoRa_900M_rx(void *pvParameters);
+
 // SX1262 has the following connections:
 // NSS pin:   10
 // DIO1 pin:  2
@@ -51,16 +38,11 @@ void LoRa_900M_init();
 #define TX_900 -1
 #define RX_900 14
 #define BUSY_900 13
+
 SPIClass radio_spi_900M(HSPI);
 SPISettings spiSettings_900M(2000000, MSBFIRST, SPI_MODE0);
-SX1262 radio_900M = new Module(NSS_900, IRQ_900, RST_900, BUSY_900, radio_spi_900M, spiSettings_900M);
-
-// or using RadioShield
-// https://github.com/jgromes/RadioShield
-// SX1262 radio_900M = RadioShield.ModuleA;
-
-// or using CubeCell
-// SX1262 radio_900M = new Module(RADIOLIB_BUILTIN_MODULE);
+Module *modeuld_900M = new Module(NSS_900, IRQ_900, RST_900, BUSY_900, radio_spi_900M, spiSettings_900M);
+SX1262 radio_900M = SX1262(modeuld_900M);
 
 void LoRa_900M_init()
 {
@@ -68,24 +50,21 @@ void LoRa_900M_init()
     // 使用温度补偿晶振
     radio_900M.XTAL = true;
     // initialize SX1262 with default settings
-    Serial.print(F("[SX1262] Initializing ... "));
+    utools::logger_info("Initializing SX1262");
     // int state = radio_900M.begin(915.0, 125.0, 9, 7, 0x12, 10, 8, 1.6, false);
-    int state = radio_900M.beginFSK(915.0,300.0,5.0,156.2);
+    int state = radio_900M.beginFSK(915.0, 30.0, 5.0, 156.2, 22);
     if (state == RADIOLIB_ERR_NONE)
     {
-        Serial.println(F("success!"));
+        utools::logger_info("SX1262 Module init success!");
     }
     else
     {
-
-        while (true)
-        {
-            Serial.print(F("9XX failed, code "));
-            Serial.println(state);
-            delay(1000);
-        }
+        utools::logger_error("SX1262 Module init failed, code:", state);
+        return;
     }
-    radio_900M.setPacketReceivedAction(setFlag);
+
+    // radio_900M.setPacketReceivedAction(setFlag);
+    radio_900M.setDio1Action(setFlag);
 
     // some modules have an external RF switch
     // controlled via two pins (RX enable, TX enable)
@@ -93,24 +72,21 @@ void LoRa_900M_init()
     // call the following method
     // RX enable:   4
     // TX enable:   5
-    /*
-      radio_900M.setRfSwitchPins(RX_900, TX_900);
-    */
     radio_900M.setRfSwitchPins(RX_900, TX_900);
-    Serial.print(F("[SX1262] Starting to listen ... "));
+    utools::logger_info("SX1262 Starting to listen ... ");
     state = radio_900M.startReceive();
     if (state == RADIOLIB_ERR_NONE)
     {
-        Serial.println(F("success!"));
+        utools::logger_info("SX1262 Start to listen success!");
     }
     else
     {
-        Serial.print(F("failed, code "));
-        Serial.println(state);
-        while (true)
-            ;
+        utools::logger_error("SX1262 Start to listen failed, code:", state);
     }
+
+    xTaskCreate(LoRa_900M_rx, "LoRa_900M_rx", 1024 * 10, NULL, 1, NULL); // 启动接收任务
 }
+
 #if defined(ESP8266) || defined(ESP32)
 ICACHE_RAM_ATTR
 #endif
@@ -166,62 +142,38 @@ void LoRa_900M_tx()
         delay(1000);
     }
 }
-void LoRa_900M_rx()
+
+void LoRa_900M_rx(void *pvParameters)
 {
+    uint8_t buffer[128];
 
     while (1)
     {
-        uint8_t buffer[128];
-
-        // check if the flag is set
-        if (receivedFlag_900)
+        sync_partner_900M.wait(); // 等待同步信号，会在此处理一直等待
+        size_t len = radio_900M.getPacketLength();
+        int state = radio_900M.readData(buffer, 0);
+        if (state == RADIOLIB_ERR_NONE)
         {
-            // reset flag
-            receivedFlag_900 = false;
-
-            // you can read received data as an Arduino String
-            size_t len = radio_900M.getPacketLength();
-            int state = radio_900M.readData(buffer, 0);
-
-            if (state == RADIOLIB_ERR_NONE)
+            // utools::logger_info("recieve form 9xx:", utools::code::to_hex(buffer, len));
+            if (parseProtocol(buffer, len))
             {
-                Serial.print("receive form 9xx:");
-                Serial.println(to_hex_str(buffer, len).c_str());
-                if (parseProtocol(buffer, len))
-                {
-                    Serial.print("change channle suss");
-                    ESP.restart();
-                }
-                else
-                {
-                    // 预先确认队列中有足够的空间存储数据
-                    txBufferQueue.emplace(buffer, buffer + len); // 将数据放入队列
-                }
-            }
-            else if (state == RADIOLIB_ERR_CRC_MISMATCH)
-            {
-                // packet was received, but is malformed
-                Serial.println(F("CRC error!"));
+                utools::logger_info("change channle suss");
+                ESP.restart();
             }
             else
             {
-                // some other error occurred
-                Serial.print(F("failed, code "));
-                Serial.println(state);
+                Serial1.write(buffer, len);
+                // utools::logger_trace("send to serial1:", utools::code::to_hex(buffer, len));
             }
         }
-        if (!txBufferQueue.empty())
+        else if (state == RADIOLIB_ERR_CRC_MISMATCH)
         {
-            auto data = txBufferQueue.front();
-            txBufferQueue.pop();
-            Serial1.write(data.data(), data.size());
-            Serial.print("send to serial1:");
-            Serial.println(to_hex_str(data.data(), data.size()).c_str());
+            utools::logger_error("crc error, data:", utools::code::to_hex(buffer, len));
         }
-        // uint8_t test_buffer[] = {0xaa, 0xab, 0x1a, 0x00, 0x0f, 0x00, 0x0f, 0x00, 0x00, 0x00, 0xd4, 0xbb, 0xeb, 0x43, 0xe9, 0x88, 0x0f, 0x43, 0x00, 0x00, 0xa0, 0x41, 0x00, 0x00, 0x80, 0x3f, 0x01, 0x01, 0x35, 0x06};
-        // // Serial1.write(data.data(), data.size());
-        // Serial1.write(test_buffer, sizeof(test_buffer));
-        delay(10);
+        else
+        {
+            utools::logger_error("recieve failed code:", state);
+        }
     }
 }
 
@@ -230,7 +182,7 @@ uint8_t parseProtocol(uint8_t *data, size_t length)
     // 检查数据长度
     if (length != 11)
     {
-        Serial.println("Invalid data length");
+        // Serial.println("Invalid data length");
         return 0;
     }
 
@@ -304,10 +256,7 @@ uint8_t parseProtocol(uint8_t *data, size_t length)
             return 1;
         }
     }
-    else
-    {
-        // 数据不匹配
-        Serial.println("Data does not match the expected pattern.");
-        return 0;
-    }
+    // 数据不匹配
+    Serial.println("Data does not match the expected pattern.");
+    return 0;
 }
