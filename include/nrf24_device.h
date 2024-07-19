@@ -3,12 +3,13 @@
 
 #include <RadioLib.h>
 #include <cstdint>
+#include "radio_device.h"
 
-class nRF24Device
+class nRF24Device : public RadioDevice
 {
 private:
     SPIClass *__radio_spi{nullptr}; // 默认为HSPI
-    SPISettings __spi_setting{2000000, MSBFIRST, SPI_MODE0};
+    SPISettings __spi_setting{60000000, MSBFIRST, SPI_MODE0};
     nRF24 *__radio{nullptr};
 
 public:
@@ -27,12 +28,6 @@ public:
 
     virtual ~nRF24Device();
 
-    int16_t sleep();
-    int16_t standby();
-    /// @brief 设置载波频率
-    /// @param freq 载波频率，单位为MHz。
-    /// @return int16_t
-    int16_t setFrequency(float freq);
     /// @brief 初始化nrf24
     /// @param freq 载波频率，单位为MHz。默认为2400 MHz。
     /// @param dr 要使用的数据速率，单位为kbps。默认为1000 kbps。
@@ -56,17 +51,27 @@ public:
     /// @param message 需要发送的数据
     /// @param size 数据长度
     /// @return bool
-    bool send(uint8_t *message, size_t size);
+    bool send(uint8_t *message, size_t size) override;
 
     /// @brief 接收数据
     /// @param buffer 接收数据的缓冲区
     /// @param size 接收数据的长度
     /// @return bool
-    bool recv(uint8_t *buffer, size_t &size);
+    bool recv(uint8_t *buffer, size_t &size) override;
 
-    /// @brief 获取设备的操作管理权
-    /// @return 设备对象
-    inline nRF24 &device() const;
+    int32_t set_frequency(uint32_t frequency) override;
+
+    uint8_t set_power(uint8_t power) override;
+
+    uint32_t set_data_rate(uint32_t rate) override;
+
+    uint8_t set_addr_width(uint8_t addr_width) override;
+
+    bool shutdown() override;
+
+    bool reboot() override;
+
+    void *device() override { return __radio; }
 };
-extern nRF24Device __nrf24_a;
+
 #endif

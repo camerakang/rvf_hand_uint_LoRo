@@ -11,6 +11,7 @@
 #include "bytes_string.hpp"
 #include "nrf24_device.h"
 #include "utools.h"
+#include "LoRa_24G.hpp"
 
 auto sync_partner_900M{utools::collab::freertos::make_sync_partner<false, true>()};
 
@@ -193,64 +194,65 @@ uint8_t parseProtocol(uint8_t *data, size_t length)
         int state;
         Serial.print("data:");
         Serial.println(data[7], HEX);
-        state = __nrf24_a.sleep();
+        auto nrf24_dev = static_cast<nRF24 *>(__nrf24_a.device());
+        state = nrf24_dev->sleep();
         Serial.print("state:");
         Serial.println(state);
         switch (data[7])
         {
         case 0x00:
-            state = __nrf24_a.setFrequency(2402);
+            state = nrf24_dev->setFrequency(2402);
             break;
         case 0x05:
-            state = __nrf24_a.setFrequency(2409);
+            state = nrf24_dev->setFrequency(2409);
             break;
         case 0x0a:
-            state = __nrf24_a.setFrequency(2416);
+            state = nrf24_dev->setFrequency(2416);
             break;
         case 0x0f:
-            state = __nrf24_a.setFrequency(2423);
+            state = nrf24_dev->setFrequency(2423);
             break;
         case 0x14:
-            state = __nrf24_a.setFrequency(2430);
+            state = nrf24_dev->setFrequency(2430);
             break;
         case 0x19:
-            state = __nrf24_a.setFrequency(2437);
+            state = nrf24_dev->setFrequency(2437);
             break;
         case 0x1e:
-            state = __nrf24_a.setFrequency(2444);
+            state = nrf24_dev->setFrequency(2444);
             break;
         case 0x23:
-            state = __nrf24_a.setFrequency(2451);
+            state = nrf24_dev->setFrequency(2451);
             break;
         case 0x28:
-            state = __nrf24_a.setFrequency(2458);
+            state = nrf24_dev->setFrequency(2458);
             break;
         case 0x2d:
-            state = __nrf24_a.setFrequency(2465);
+            state = nrf24_dev->setFrequency(2465);
             break;
         case 0x32:
-            state = __nrf24_a.setFrequency(2472);
+            state = nrf24_dev->setFrequency(2472);
             break;
         case 0x37:
-            state = __nrf24_a.setFrequency(2479);
+            state = nrf24_dev->setFrequency(2479);
             break;
         case 0x3c:
-            state = __nrf24_a.setFrequency(2486);
+            state = nrf24_dev->setFrequency(2486);
             break;
         case 0x41:
-            state = __nrf24_a.setFrequency(2493);
+            state = nrf24_dev->setFrequency(2493);
             break;
         case 0x46:
-            state = __nrf24_a.setFrequency(2500);
+            state = nrf24_dev->setFrequency(2500);
             break;
         case 0x4b:
-            state = __nrf24_a.setFrequency(2507);
+            state = nrf24_dev->setFrequency(2507);
             break;
 
         default:
             break;
         }
-        state = __nrf24_a.standby();
+        state = nrf24_dev->standby();
         if (state == RADIOLIB_ERR_NONE)
         {
             return 1;

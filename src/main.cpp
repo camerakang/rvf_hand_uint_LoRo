@@ -60,7 +60,10 @@ void setup()
   Serial1.begin(115200, SERIAL_8N1, 18, 17);
   Serial1.setRxTimeout(10);
   Serial1.onReceive(onReceive);
+
+  // 初始化 LoRa_24G
   LoRa_24G_init();
+  // 初始化 LoRa_900M
   LoRa_900M_init();
 }
 
@@ -76,8 +79,6 @@ void handle_receive()
     Serial.println(receive_times++);
     Serial.print("\t");
     Serial.println(to_hex_str(recv_buf, recv_len).c_str());
-
-    // Serial1.write(recv_buf, recv_len);
   }
   delete recv_buf;
 }
@@ -97,48 +98,106 @@ void loop()
     // __nrf24_a.send(test_buffer, sizeof(test_buffer));
   }
 
-  // if (!dataQueue.empty() && !lengthQueue.empty())
-  // {
-  //   // 获取并移除长度队列头部的长度值
-  //   size_t *length = lengthQueue.front();
-  //   if (length != nullptr)
-  //   {
-  //     // 获取并移除相应长度的数据
-  //     uint8_t *data = dataQueue.front();
-  //     if (data != nullptr)
-  //     {
-  //       // 处理接收到的数据
-  //       Serial.print(F("Received data: "));
-  //       for (size_t i = 0; i < *length; ++i)
-  //       {
-  //         Serial.print(data[i], HEX);
-  //         Serial.print(" ");
-  //       }
-  //       Serial.println();
-  //       // LoRa_24G_tx(data,  *length);
-  //       // 移除队列头部的元素
-  //       dataQueue.pop();
-  //     }
-  //     lengthQueue.pop();
-  //   }
-  // }
-  // uint8_t txbuffer[]{0xAA, 0xAB, 0x14, 0x00, 0x08, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x8E, 0x40, 0xC1, 0x3E, 0x31, 0x0A, 0xA3, 0x3E, 0x2D, 0xC8, 0x02, 0x3E, 0x2E, 0x15};
-  // uint8_t newBuffer[24 + 1];
-  // newBuffer[0] = packetCount;
-
-  // // 将原始数据包复制到新的缓冲区
-  // for (uint8_t i = 0; i < 24; ++i)
-  // {
-  //   newBuffer[i + 1] = txbuffer[i];
-  // }
-
-  // // 发送数据包
-  // __nrf24_a.send(newBuffer, 24 + 1);
-
-  // // 增加计数编号
-  // packetCount++;
-
-  // __nrf24_a.send(txbuffer, 24);
   vTaskDelay(2); // 添加任务延时，防止占用过多CPU时间
-  // handle_receive();
 }
+
+// // include the library
+// #include <Arduino.h>
+// #include <RadioLib.h>
+
+// // nRF24 has the following connections:
+// #define MISO_24G 6
+// #define MOSI_24G 5
+// #define CS_24G 3
+// #define SCK_24G 4
+// #define IRQ_24G 7
+// #define CE_24G 2
+// SPIClass radio_spi_24G(FSPI);
+// SPISettings spiSettings_24G(60000000, MSBFIRST, SPI_MODE0);
+// nRF24 *radio;
+
+// void setup()
+// {
+//   delay(1000);
+//   Serial.begin(115200);
+
+//   // initialize nRF24 with default settings
+//   Serial.print(F("[nRF24] Initializing ... "));
+
+//   delay(1000);
+
+//   radio = new nRF24(new Module(CS_24G, IRQ_24G, CE_24G, RADIOLIB_NC, radio_spi_24G, spiSettings_24G));
+//   int state = radio->begin();
+//   if (state == RADIOLIB_ERR_NONE)
+//   {
+//     Serial.println(F("success!"));
+//   }
+//   else
+//   {
+//     Serial.print(F("failed, code "));
+//     Serial.println(state);
+//     while (true)
+//       ;
+//   } // set transmit address
+//   // NOTE: address width in bytes MUST be equal to the
+//   //       width set in begin() or setAddressWidth()
+//   //       methods (5 by default)
+//   byte addr[] = {0x01, 0x23, 0x45, 0x67, 0x89};
+//   Serial.print(F("[nRF24] Setting transmit pipe ... "));
+//   state = radio->setTransmitPipe(addr);
+//   if (state == RADIOLIB_ERR_NONE)
+//   {
+//     Serial.println(F("success!"));
+//   }
+//   else
+//   {
+//     Serial.print(F("failed, code "));
+//     Serial.println(state);
+//     while (true)
+//       ;
+//   }
+// }
+
+// // counter to keep track of transmitted packets
+// int count = 0;
+
+// void loop()
+// {
+//   Serial.print(F("[nRF24] Transmitting packet ... "));
+
+//   // you can transmit C-string or Arduino string up to
+//   // 32 characters long
+//   String str = "Hello World! #" + String(count++);
+//   int state = radio->transmit(str);
+
+//   if (state == RADIOLIB_ERR_NONE)
+//   {
+//     // the packet was successfully transmitted
+//     Serial.println(F("success!"));
+//   }
+//   else if (state == RADIOLIB_ERR_PACKET_TOO_LONG)
+//   {
+//     // the supplied packet was longer than 32 bytes
+//     Serial.println(F("too long!"));
+//   }
+//   else if (state == RADIOLIB_ERR_ACK_NOT_RECEIVED)
+//   {
+//     // acknowledge from destination module
+//     // was not received within 15 retries
+//     Serial.println(F("ACK not received!"));
+//   }
+//   else if (state == RADIOLIB_ERR_TX_TIMEOUT)
+//   {
+//     // timed out while transmitting
+//     Serial.println(F("timeout!"));
+//   }
+//   else
+//   {
+//     // some other error occurred
+//     Serial.print(F("failed, code "));
+//     Serial.println(state);
+//   }
+
+//   // wait for a second before transmitting again
+//   delay(1000);
+// }

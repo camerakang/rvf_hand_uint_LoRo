@@ -4,7 +4,9 @@
 #include <mutex>
 #include <thread>
 #include <atomic>
-#include "bytes_string.hpp"
+
+#include "utools.h"
+
 nRF24Device::nRF24Device(uint8_t spi_bus, int8_t sck, int8_t miso, int8_t mosi, int8_t ss, uint32_t irq, uint32_t rst)
 {
     __radio_spi = new SPIClass(spi_bus);
@@ -26,56 +28,43 @@ nRF24Device::~nRF24Device()
 
 bool nRF24Device::init(int16_t freq, int16_t dr, int8_t pwr, uint8_t addrWidth)
 {
+    utools::logger_info("nRF24 device init");
     auto status = __radio->begin(freq, dr, pwr, addrWidth);
-
     if (status == RADIOLIB_ERR_NONE)
     {
-        __radio->setBitRate(1000);
+        __radio->setBitRate(dr);
         __radio->setCrcFiltering(false);
         __radio->setAutoAck(false);
-        __radio->setFrequency(freq);
+        utools::logger_info("nRF24 device init success");
         return true;
     }
-    else
-    {
-
-        while (true)
-        {
-            Serial.print(F("nf24 failed, code "));
-            Serial.println(status);
-            delay(1000);
-        }
-    }
+    utools::logger_error("nRF24 device init failed. error code:", status);
     return false;
 }
 
 bool nRF24Device::set_transmit_addr(uint8_t *addr)
 {
-    return __radio->setTransmitPipe(addr) == RADIOLIB_ERR_NONE;
+    auto status{__radio->setTransmitPipe(addr)};
+    utools::logger_info("set transmit addr:", utools::code::to_hex(addr, 5), "status:", status);
+    return RADIOLIB_ERR_NONE == status;
 }
 
 bool nRF24Device::set_receive_addr(uint8_t pipe_num, uint8_t *addr)
 {
-    return __radio->setReceivePipe(pipe_num, addr) == RADIOLIB_ERR_NONE;
+    auto status{__radio->setReceivePipe(pipe_num, addr)};
+    utools::logger_info("set receive addr:pipe:", utools::code::to_hex(addr, 5), ":", pipe_num, "status:", status);
+    return RADIOLIB_ERR_NONE == status;
 }
-uint64_t sendtimes = 0;
+
 bool nRF24Device::send(uint8_t *message, size_t size)
 {
-
     auto status{__radio->transmit(message, size, 0)};
-    if (RADIOLIB_ERR_NONE == status)
+    if (status == RADIOLIB_ERR_ACK_NOT_RECEIVED)
     {
-        Serial.print("send--->>> ");
-        Serial.print(sendtimes++);
-        Serial.print("\t");
-        Serial.println(to_hex_str(message, size, true).c_str());
-    }
-    else
-    {
-        Serial.print(F("send failed, code "));
-        Serial.println(status);
+        // static_cast<nRF24 *>(__radio)->clearIRQ();
         ESP.restart();
     }
+    utools::logger_info("send message:", utools::code::to_hex(message, size), "status:", status);
     return RADIOLIB_ERR_NONE == status;
 }
 
@@ -86,28 +75,38 @@ bool nRF24Device::recv(uint8_t *buffer, size_t &size)
 
     if (status == RADIOLIB_ERR_NONE)
     {
-        Serial.print("recv--->>> ");
-        Serial.println(to_hex_str(buffer, size, true).c_str());
         return true;
     }
     return false;
 }
 
-nRF24 &nRF24Device::device() const
+int32_t nRF24Device::set_frequency(uint32_t frequency)
 {
-    return *__radio;
+    return __radio->setFrequency(frequency / 1000000);
 }
 
-int16_t nRF24Device::setFrequency(float freq)
+uint8_t nRF24Device::set_power(uint8_t power)
 {
-    return __radio->setFrequency(freq);
-}
-int16_t nRF24Device::sleep()
-{
-    return __radio->sleep();
+    return 0;
 }
 
-int16_t nRF24Device::standby()
+uint32_t nRF24Device::set_data_rate(uint32_t rate)
 {
-    return __radio->standby();
+    // return __radio->setDataRate(rate);
+    return 0;
+}
+
+uint8_t nRF24Device::set_addr_width(uint8_t addr_width)
+{
+    return 0;
+}
+
+bool nRF24Device::shutdown()
+{
+    return RADIOLIB_ERR_NONE == __radio->sleep();
+}
+
+bool nRF24Device::reboot()
+{
+    return true;
 }

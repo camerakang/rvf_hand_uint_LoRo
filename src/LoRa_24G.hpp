@@ -16,22 +16,25 @@
    https://jgromes.github.io/RadioLib/
 */
 
+#ifndef __LoRa_24G_HPP__
+#define __LoRa_24G_HPP__
+
 // include the library
 #include <RadioLib.h>
 #include "bytes_string.hpp"
 #include "nrf24_device.h"
-nRF24Device __nrf24_a{FSPI, 4, 6, 5, 3, 7, 2};
+extern nRF24Device __nrf24_a{FSPI, 4, 6, 5, 3, 7, 2};
 
-enum Mode
-{
-    RECEIVING,
-    SENDING
-};
-volatile Mode currentMode = RECEIVING;
-ICACHE_RAM_ATTR void setreceiveFlag(void);
-volatile bool receivedFlag = false;
+// enum Mode
+// {
+//     RECEIVING,
+//     SENDING
+// };
+// volatile Mode currentMode = RECEIVING;
+// ICACHE_RAM_ATTR void setreceiveFlag(void);
+// volatile bool receivedFlag = false;
 
-int transmissionState = RADIOLIB_ERR_NONE;
+// int transmissionState = RADIOLIB_ERR_NONE;
 
 // nRF24 has the following connections:
 // #define MISO_24G 6
@@ -57,3 +60,5 @@ void LoRa_24G_init()
     __nrf24_a.set_transmit_addr(addr_pcie);
     __nrf24_a.set_receive_addr(0, addr_rvf);
 }
+
+#endif // __LoRa_24G_HPP__
