@@ -23,7 +23,7 @@
 #include <RadioLib.h>
 #include "bytes_string.hpp"
 #include "nrf24_device.h"
-extern nRF24Device __nrf24_a{FSPI, 4, 6, 5, 3, 7, 2};
+nRF24Device __nrf24_a{FSPI, 4, 6, 5, 3, 7, 2};
 
 // enum Mode
 // {
