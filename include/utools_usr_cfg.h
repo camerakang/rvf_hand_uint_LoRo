@@ -1,0 +1,8 @@
+#ifndef __UTOOLS_USR_CFG_H__
+#define __UTOOLS_USR_CFG_H__
+
+#define UTOOLS_LOGGER_ENABLE 1
+#define UTOOLS_COLLAB_SYNC_QUEUE 1
+#define UTOOLS_COLLAB_SYNC_PARTNER 1
+
+#endif // __UTOOLS_USR_CFG_H__
